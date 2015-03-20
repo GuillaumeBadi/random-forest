@@ -1,6 +1,11 @@
+/*
 var cluster		= require('cluster'),
 	app			= require('koa')(),
 	numCPUs		= require('os').cpus().length;
+*/
+var _ = require ("underscore");
+
+var log = Math.log2 || Math.log
 
 data2 = [
 	{outlook: "nuageux",	temperature: "23", 	jour: "lundi", 		position: "travail", 	heure: "22", humeur: "content"},
@@ -19,9 +24,9 @@ data2 = [
 ]
 
 perso = [
-	{name: "ashley", "ev": 1, "nv": 3, length: 6, g: "f"}, //
+	{name: "ashley", "ev": 1, "nv": 3, length: 6, g: "f"},
 	{name: "brian", "ev": 0, "nv": 2, length: 5, g: "m"},
-	{name: "Caroline", "ev": 1, "nv": 4, length: 8, g: "f"}, //
+	{name: "Caroline", "ev": 1, "nv": 4, length: 8, g: "f"},
 	{name: "david", "ev": 0, "nv": 3, length: 5, g: "m"},
 	{name: "norih", "ev": 0, "nv": 2, length: 5, g: "m"},
 	{name: "guillaume", "ev": 1, "nv": 4, length: 9, g: "m"},
@@ -34,14 +39,6 @@ perso = [
 	{name: "pierre", "ev": 1, "nv": 3, length: 6, g: "f"},
 	{name: "theo", "ev": 1, "nv": 2, length: 4, g: "m"}
 ]
-
-Object.size = function(obj) {
-    var size = 0, key;
-    for (key in obj) {
-        if (obj.hasOwnProperty(key)) size++;
-    }
-    return size;
-};
 
 var informationGain = function(dataset, targetAttr) {
 
@@ -100,9 +97,7 @@ var informationGain = function(dataset, targetAttr) {
 
 		for (var key in node) {
 			if (node[key] > dataset.length) throw new Error("fucking division");
-			sum -= node[key] ? node[key] / dataset.length * Math.log2(node[key] / dataset.length) : 0;
-			console.log (node[key], "/", dataset.length, "*", Math.log2(node[key] / dataset.length), " = ", node[key] ? node[key] / dataset.length * Math.log2(node[key] / dataset.length) : 0);
-			console.log ("sum = " + sum);
+			sum -= node[key] ? node[key] / dataset.length * log(node[key] / dataset.length) : 0;
 		}
 		return sum;
 	}
@@ -113,7 +108,7 @@ var informationGain = function(dataset, targetAttr) {
 
 		for (var key in node) len += node[key];
 		for (var key in node) {
-			sum -= node[key] ? node[key] / len *Math.log2(node[key] / len) : 0;
+			sum -= node[key] ? node[key] / len * log(node[key] / len) : 0;
 		}
 		return sum;
 	}
@@ -162,7 +157,7 @@ var informationGain = function(dataset, targetAttr) {
 		return entropyBefore - entropyAfter;
 	}
 
-	this.entropyAll = function () {
+	this.gains = function () {
 		var allEntropy = {};
 
 		for (var attr in this.possibles) {
@@ -172,11 +167,57 @@ var informationGain = function(dataset, targetAttr) {
 	}
 }
 
+
+function ID3 (dataset, targetAttr, exception) {
+	this.dataset = dataset;
+	this.info = new informationGain(dataset, targetAttr);
+	this.branches = [];
+	this.exception = (exception === undefined) ? [] : exception;
+	console.log (this.exception)
+
+	var self = this;
+	this.bestAttr = (function () {
+		var gains = self.info.gains();
+
+		var max = 0;
+		var at = "";
+		for (var key in gains) {
+			if (gains[key] > max && self.exception.indexOf(key) === -1) {
+				max = gains[key];
+				at = key;
+			}
+		}
+		self.exception.push(key);
+		return key;
+	})();
+
+	this.split = function () {
+		var possibles = this.info.getAllAttr()[this.bestAttr];
+		var children = [];
+
+		for (var i = 0; i < possibles.length; i++) {
+			children[i] = [];
+			for (var j = 0; j < this.dataset.length; j++) {
+				if (possibles[i] === this.dataset[j][this.bestAttr])
+					children[i].push (this.dataset[i]);
+			}
+		}
+		for (var i = 0; i < children.length; i++) {
+			this.branches.push (new ID3(children[i], this.targetAttr, this.exception));
+		}
+	}
+}
+
+(function main () {
+	var tree = new ID3(data2, "humeur");
+	tree.split();
+})();
+
+/*
 if (cluster.isMaster) {
 
 	for(var i = 0; i < numCPUs; i++) {cluster.fork();}
 	cluster.on('exit', function(worker, code, signal) {
-		console.log ("died");
 	});
 
 } else {
@@ -187,3 +228,4 @@ if (cluster.isMaster) {
 		this.body = tres;
 	}).listen(3000);
 }
+*/
