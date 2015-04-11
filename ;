@@ -25,7 +25,7 @@ data2 = [
 ]
 
 perso = [
-	{name: "ashley",	"ev": 1, "nv": 3, length: 6, g: "f"},
+	{name: "ashley",	"ev": 2, "nv": 3, length: 6, g: "f"},
 	{name: "brian",		"ev": 0, "nv": 2, length: 5, g: "m"},
 	{name: "Caroline",	"ev": 1, "nv": 4, length: 8, g: "f"},
 	{name: "david",		"ev": 0, "nv": 3, length: 5, g: "m"},
@@ -174,8 +174,7 @@ function ID3 (dataset, targetAttr, exception) {
 	this.info = new informationGain(dataset, targetAttr);
 	this.branches = [];
 	this.exception = (exception === undefined) ? [] : exception;
-
-	if (targetAttr === undefined) console.log (dataset);
+	console.log (this.exception)
 
 	var self = this;
 	this.bestAttr = (function () {
@@ -183,80 +182,65 @@ function ID3 (dataset, targetAttr, exception) {
 
 		var max = 0;
 		var at = "";
-		async.forEach(Object.keys(gains), function (key, done) {
-			if (gains[key] > max && self.exception.indexOf(key) == -1) {
+		for (var key in gains) {
+			if (gains[key] > max && self.exception.indexOf(key) === -1) {
 				max = gains[key];
 				at = key;
 			}
-			done(0);
-		}, function (err) {
-			self.exception.push(at);
-		});
-		return at;
+		}
+		self.exception.push(key);
+		return key;
 	})();
 
-	var self = this;
 	this.split = function () {
 		var possibles = this.info.getAllAttr()[this.bestAttr];
 		this.children = [];
-		self.leaf = true;
 
-		async.forEach(self.dataset, function (data, doneCheck) {
-			if (data[targetAttr] != self.dataset[0][targetAttr])
-				self.leaf = false;
-			doneCheck();
-		}, function (err) {
-			if (err) console.log (err);
-			if (self.leaf === false) {
-				async.forEach(possibles, function (possible, callback) {
-					self.children.push([]);
-					async.forEach(self.dataset, function (data, dataDone) {
-						if (possible === data[self.bestAttr])
-							self.children[self.children.length - 1].push (data);
-						dataDone(0, data);
-					}, function (err, data) {
-						if (err) console.log (err);
-					});
+		async.forEach(possibles, function (possible, callback) {
+			async.map(this.dataset, function (line, done) {
+				if (possible === line[this.bestAttr])
+					done(0, line);
+			}, function (err, children) {
+				async.map(children, function (child, done) {
+					done (0, new ID3(child, this.targetAttr, this.exception));
+				}, function (err, res) {
+					if (err) console.log ("err", err);
 					callback();
-				}, function (err) {
-					async.forEach(self.children, function (child, doneBranch) {
-						var branch = new ID3(child, targetAttr, self.exception);
-						branch.split();
-						self.branches.push(branch);
-						doneBranch();
-					}, function (err) {
-						if (err) console.log (err);
-					});
-				});
-			}
-		});
-	}
-
-	this.predict = function (data) {
-		var self = this;
-		if (this.leaf) {
-			self.prediction = this.dataset[0][targetAttr];
-		} else {
-			async.map(this.branches, function (branch, done) {
-				if (data[self.bestAttr] === branch.dataset[0][self.bestAttr])	
-					return done(0, branch.predict(data));
-				done(0, 0);
-			}, function (err, data) {
-				async.forEach(data, function (d, done) {
-					if (d !== 0) self.prediction = d;
-					done();
-				}, function (err) {
-					if (err) console.log (err);
 				});
 			});
-		}
-		return self.prediction;
-	}
+		}, function (err, data) {});
 
+		for (var i = 0; i < possibles.length; i++) {
+			children[i] = [];
+			for (var j = 0; j < this.dataset.length; j++) {
+				if (possibles[i] === this.dataset[j][this.bestAttr])
+					children[i].push (this.dataset[i]);
+			}
+		}
+		for (var i = 0; i < children.length; i++) {
+			this.branches.push (new ID3(children[i], this.targetAttr, this.exception));
+		}
+	}
 }
 
 (function main () {
-	var tree = new ID3(perso, "g");
+	var tree = new ID3(data2, "humeur");
 	tree.split();
-	console.log (tree.predict({name: "reynald",	"ev": 0, "nv": 2, length: 7}));
 })();
+
+/*
+if (cluster.isMaster) {
+
+	for(var i = 0; i < numCPUs; i++) {cluster.fork();}
+	cluster.on('exit', function(worker, code, signal) {
+	});
+
+} else {
+	app.use(function* () {
+		var test = new informationGain(data2, "humeur");
+		// var test = new informationGain(perso, "g");
+		var tres = test.entropyAll();
+		this.body = tres;
+	}).listen(3000);
+}
+*/
