@@ -197,20 +197,34 @@ function ID3 (dataset, targetAttr, exception) {
 
 	var self = this;
 	this.split = function () {
+		// We get all the possible values for the given best attribute to split our data
 		var possibles = this.info.getAllAttr()[this.bestAttr];
 		this.children = [];
 		self.leaf = true;
 
 		async.forEach(self.dataset, function (data, doneCheck) {
+			// We loop through our dataset to make sure they do not belong to the same class
+			// i.e. They are not terminal
+			// if some are happy and some are not, this is not a leaf node
 			if (data[targetAttr] != self.dataset[0][targetAttr])
 				self.leaf = false;
 			doneCheck();
 		}, function (err) {
 			if (err) console.log (err);
+
+			// If we do not deal with a leaf node
 			if (self.leaf === false) {
 				async.forEach(possibles, function (possible, callback) {
+					// we iterate through all the possible values of
+					// our best attribute
+					// and we create an empty array in our children array to store the data
+					// that match the possible value
+					// i.e. if we choose to split outcast, there will be one array to store the rain data
+					// one array to store the sunny data etc
 					self.children.push([]);
 					async.forEach(self.dataset, function (data, dataDone) {
+						// for each line in our dataset,
+						// if it match the current possible value, we store it in the last array of the children array
 						if (possible === data[self.bestAttr])
 							self.children[self.children.length - 1].push (data);
 						dataDone(0, data);
@@ -219,7 +233,12 @@ function ID3 (dataset, targetAttr, exception) {
 					});
 					callback();
 				}, function (err) {
+					// Now we got an array of dataset groups
+					// we want to create new branches out of it
 					async.forEach(self.children, function (child, doneBranch) {
+						// So for each child array in children,
+						// we create a new branch with the matching dataset
+						// and we split it the same way
 						var branch = new ID3(child, targetAttr, self.exception);
 						branch.split();
 						self.branches.push(branch);
@@ -235,14 +254,22 @@ function ID3 (dataset, targetAttr, exception) {
 	this.predict = function (data) {
 		var self = this;
 		if (this.leaf) {
+			// if we deal with a terminal node,
+			// return the value of the targetAttri class (happy, bad...)
 			self.prediction = this.dataset[0][targetAttr];
 		} else {
 			async.map(this.branches, function (branch, done) {
+				// else we create an array
+				// that will contains either 0 or the prediction of the matching branch
+				// of the tree
+				// data = [0,0,0,rainy,0,0,0]
 				if (data[self.bestAttr] === branch.dataset[0][self.bestAttr])	
 					return done(0, branch.predict(data));
 				done(0, 0);
 			}, function (err, data) {
 				async.forEach(data, function (d, done) {
+					// Now we look for the only element of the array that is not a 0
+					// and we return it
 					if (d !== 0) self.prediction = d;
 					done();
 				}, function (err) {
